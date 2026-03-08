@@ -4,16 +4,19 @@ document.addEventListener("DOMContentLoaded", () => {
     const scoreContainer = document.querySelector(".score-container");
     const messageContainer = document.getElementById("game-message");
     const messageText = messageContainer.querySelector("p");
+    const keepPlayingBtn = document.getElementById("keep-playing-btn");
     
     const startAIBtn = document.getElementById("start-ai-btn");
     const stopAIBtn = document.getElementById("stop-ai-btn");
-    const aiSpeedSlider = document.getElementById("ai-speed");
-    const aiSpeedVal = document.getElementById("speed-val");
+    const stepAIBtn = document.getElementById("step-ai-btn");
+    const speedDownBtn = document.getElementById("speed-down-btn");
+    const speedUpBtn = document.getElementById("speed-up-btn");
 
     let score = 0;
     let lockOperations = false;
     let aiInterval = null;
     let aiSpeed = 500;
+    let hasWon = false;
     
     // NEW TILE MANAGER
     let tiles = [];
@@ -77,20 +80,35 @@ document.addEventListener("DOMContentLoaded", () => {
     function init() {
         document.getElementById("restart-btn").addEventListener("click", resetGame);
         document.getElementById("retry-btn").addEventListener("click", resetGame);
+        
+        const undoBtn = document.getElementById("undo-btn");
+        if (undoBtn) undoBtn.addEventListener("click", undoMove);
+        
+        keepPlayingBtn.addEventListener("click", () => {
+            messageContainer.classList.remove("game-won");
+        });
         setupInput();
         setupAI();
         fetchState();
     }
 
     function setupAI() {
-        if (aiSpeedSlider) aiSpeed = parseInt(aiSpeedSlider.value, 10);
-        
         startAIBtn.addEventListener("click", startAI);
         stopAIBtn.addEventListener("click", stopAI);
+        stepAIBtn.addEventListener("click", stepAI);
         
-        aiSpeedSlider.addEventListener("input", (e) => {
-            aiSpeed = parseInt(e.target.value, 10);
-            aiSpeedVal.textContent = aiSpeed;
+        speedDownBtn.addEventListener("click", () => {
+            // Decrease speed means INCREASE delay
+            aiSpeed = Math.min(2000, aiSpeed + 100); 
+            if (aiInterval) {
+                stopAI();
+                startAI();
+            }
+        });
+
+        speedUpBtn.addEventListener("click", () => {
+            // Increase speed means DECREASE delay
+            aiSpeed = Math.max(100, aiSpeed - 100); 
             if (aiInterval) {
                 stopAI();
                 startAI();
@@ -102,10 +120,16 @@ document.addEventListener("DOMContentLoaded", () => {
         if (aiInterval) return;
         startAIBtn.disabled = true;
         stopAIBtn.disabled = false;
+        stepAIBtn.disabled = true;
+        
         startAIBtn.style.cursor = 'not-allowed';
         startAIBtn.style.background = '#ccc';
+        
         stopAIBtn.style.cursor = 'pointer';
         stopAIBtn.style.background = '#8f7a66';
+        
+        stepAIBtn.style.cursor = 'not-allowed';
+        stepAIBtn.style.background = '#ccc';
         
         aiInterval = setInterval(makeAIMove, aiSpeed);
     }
@@ -117,10 +141,21 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         startAIBtn.disabled = false;
         stopAIBtn.disabled = true;
+        stepAIBtn.disabled = false;
+        
         startAIBtn.style.cursor = 'pointer';
         startAIBtn.style.background = '#8f7a66';
+        
         stopAIBtn.style.cursor = 'not-allowed';
         stopAIBtn.style.background = '#ccc';
+        
+        stepAIBtn.style.cursor = 'pointer';
+        stepAIBtn.style.background = '#8f7a66';
+    }
+
+    function stepAI() {
+        if (aiInterval) return; // Prevent manual stepping during auto play
+        makeAIMove();
     }
 
     function setupInput() {
@@ -183,7 +218,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function makeAIMove() {
-        if (lockOperations && aiInterval) return; 
+        if (lockOperations) return; 
         
         lockOperations = true;
         try {
@@ -207,8 +242,36 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    async function undoMove() {
+        if (lockOperations || aiInterval) return;
+        lockOperations = true;
+        try {
+            const res = await fetch("/api/undo", { method: "POST" });
+            const data = await res.json();
+            
+            if (data.success) {
+                // To undo, we just instantly reconcile the board
+                score = data.score || 0;
+                scoreContainer.textContent = score;
+                reconcileBoard(data.board);
+                
+                // Clear win/loss states if we just undid back into an active game
+                if (!data.game_over) {
+                    messageContainer.classList.remove("game-over");
+                    if (hasWon && !data.board.some(row => row.some(val => val >= 256))) {
+                        hasWon = false;
+                        messageContainer.classList.remove("game-won");
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("Error undoing move:", e);
+        }
+        lockOperations = false;
+    }
+
     function handleMoveResponse(data, action) {
-        score += Math.floor(data.reward * 100);
+        score = data.score || 0;
         scoreContainer.textContent = score;
 
         if (data.valid_move && action !== undefined && action !== null) {
@@ -233,12 +296,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async function resetGame() {
         messageContainer.classList.remove("game-over");
+        messageContainer.classList.remove("game-won");
+        hasWon = false;
         stopAI();
         lockOperations = true;
-        score = 0;
         try {
             const res = await fetch("/api/reset", { method: "POST" });
             const data = await res.json();
+            
+            score = data.score || 0;
+            scoreContainer.textContent = score;
             
             tiles.forEach(t => t.remove());
             tiles = [];
@@ -259,9 +326,18 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function updateGameState(data) {
+        if (data.score !== undefined) {
+            score = data.score;
+            scoreContainer.textContent = score;
+        }
         if (data.game_over) {
             messageText.textContent = "Game over!";
             messageContainer.classList.add("game-over");
+            stopAI();
+        } else if (!hasWon && data.board.some(row => row.some(val => val >= 256))) {
+            hasWon = true;
+            messageText.textContent = "You win!";
+            messageContainer.classList.add("game-won");
             stopAI();
         }
         

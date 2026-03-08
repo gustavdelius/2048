@@ -5,12 +5,17 @@ class Game2048Env:
     """
     A 3x3 version of the 2048 game compatible with standard RL training loops.
     """
-    def __init__(self):
+    def __init__(self, track_history=False):
         self.size = 3
         self.action_space_n = 4  # 0: Up, 1: Down, 2: Left, 3: Right
+        self.track_history = track_history
+        self.history = []
+        self.score = 0
         self.reset()
         
     def reset(self):
+        self.history = []
+        self.score = 0
         self.board = np.zeros((self.size, self.size), dtype=np.int32)
         self.add_random_tile()
         self.add_random_tile()
@@ -47,6 +52,10 @@ class Game2048Env:
         reward = 0
         changed = False
         
+        # Save current state before modifying
+        if self.track_history:
+            self.history.append((self.board.copy(), self.score))
+        
         if action == 0: # Up
             self.board, reward, changed = self.slide_and_merge(self.board, direction='up')
         elif action == 1: # Down
@@ -58,8 +67,13 @@ class Game2048Env:
             
         # Give a small negative reward for invalid moves to encourage learning valid moves
         if not changed:
-            reward = -1 
+            reward = -1
+            # Revert history if the move didn't change anything
+            if self.track_history and self.history:
+                self.history.pop()
         else:
+            if reward > 0:
+                self.score += reward
             self.add_random_tile()
             
         done = self.is_game_over()
@@ -152,3 +166,13 @@ class Game2048Env:
             if changed:
                 valid_actions.append(a)
         return valid_actions
+
+    def undo(self):
+        """
+        Reverts the board to the previous state if history is available.
+        Returns: success (bool)
+        """
+        if self.track_history and len(self.history) > 0:
+            self.board, self.score = self.history.pop()
+            return True
+        return False

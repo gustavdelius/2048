@@ -11,6 +11,7 @@
 !*.html
 !*.md
 !.gitignore
+!static/
 
 # Re-ignore virtual environments, cache, built files, datasets and logs
 venv/

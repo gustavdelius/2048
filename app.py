@@ -6,7 +6,7 @@ import torch
 from agent import DQNAgent
 
 app = Flask(__name__, static_folder='static')
-env = Game2048Env()
+env = Game2048Env(track_history=True)
 
 # Initialize AI Agent
 ai_agent = DQNAgent()
@@ -15,7 +15,7 @@ try:
     print("Loaded best_model.pth successfully for AI play.")
 except Exception as e:
     print(f"Could not load best_model.pth: {e}")
-env = Game2048Env()
+env = Game2048Env(track_history=True)
 
 @app.route('/')
 def index():
@@ -25,7 +25,7 @@ def index():
 def get_state():
     info = {
         'board': env.board.tolist(),
-        'score': 0, # Depending on how we track score, env.py tracks reward but not cumulative score. We might just use max tile or calculate it.
+        'score': int(env.score),
         'game_over': env.is_game_over()
     }
     return jsonify(info)
@@ -42,6 +42,7 @@ def make_move():
     
     response = {
         'board': env.board.tolist(),
+        'score': int(env.score),
         'reward': reward,
         'game_over': done,
         'valid_move': info.get('valid_move', True),
@@ -54,6 +55,18 @@ def reset_game():
     env.reset()
     info = {
         'board': env.board.tolist(),
+        'score': int(env.score),
+        'game_over': env.is_game_over()
+    }
+    return jsonify(info)
+
+@app.route('/api/undo', methods=['POST'])
+def undo_move():
+    success = env.undo()
+    info = {
+        'success': success,
+        'board': env.board.tolist(),
+        'score': int(env.score),
         'game_over': env.is_game_over()
     }
     return jsonify(info)
@@ -73,6 +86,7 @@ def make_ai_move():
     
     response = {
         'board': env.board.tolist(),
+        'score': int(env.score),
         'reward': reward,
         'game_over': done,
         'valid_move': True,

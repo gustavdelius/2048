@@ -81,7 +81,7 @@ h1.title {
   line-height: 1.5;
 }
 
-.restart-button, .retry-button {
+.restart-button, .retry-button, .keep-playing-button {
   display: inline-block;
   background: #8f7a66;
   border-radius: 3px;
@@ -92,6 +92,15 @@ h1.title {
   line-height: 40px;
   cursor: pointer;
   font-weight: bold;
+}
+
+.keep-playing-button {
+  display: none;
+  margin-right: 10px;
+}
+
+.game-message.game-won .keep-playing-button {
+  display: inline-block;
 }
 
 .game-container {
@@ -196,9 +205,17 @@ h1.title {
   color: #776e65;
 }
 
-.game-message.game-over {
+.game-message.game-over, .game-message.game-won {
   display: flex;
   animation: fade-in 800ms ease 1200ms both;
+}
+
+.game-message.game-won {
+  background: rgba(237, 194, 46, 0.5);
+}
+
+.game-message.game-won p {
+  color: #f9f6f2;
 }
 
 @keyframes fade-in {

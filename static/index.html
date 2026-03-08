@@ -3,14 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2048 Game</title>
+    <title>256 Game</title>
     <link href="https://fonts.googleapis.com/css?family=Clear+Sans:400,700,800" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" type="image/png" href="/static/favicon.png">
 </head>
 <body>
     <div class="container">
         <div class="heading">
-            <h1 class="title">2048</h1>
+            <h1 class="title">256</h1>
             <div class="scores-container">
                 <div class="score-container">0</div>
                 <!-- <div class="best-container">0</div> -->
@@ -18,18 +19,20 @@
         </div>
 
         <div class="above-game">
-            <p class="game-intro">Join the numbers and get to the <strong>2048 tile!</strong></p>
+            <p class="game-intro">Join the numbers and get to the <strong>256 tile!</strong></p>
             <a class="restart-button" id="restart-btn">New Game</a>
         </div>
 
-        <div class="ai-controls" style="margin-top: 20px; display: flex; align-items: center; justify-content: space-between; background: #bbada0; padding: 15px; border-radius: 3px; color: white;">
-            <div>
-                <button id="start-ai-btn" style="background: #8f7a66; color: white; border: none; padding: 10px 20px; border-radius: 3px; cursor: pointer; font-weight: bold; margin-right: 10px;">Start AI</button>
-                <button id="stop-ai-btn" disabled style="background: #ccc; color: white; border: none; padding: 10px 20px; border-radius: 3px; cursor: not-allowed; font-weight: bold;">Stop AI</button>
-            </div>
-            <div class="speed-control" style="display: flex; align-items: center;">
-                <label for="ai-speed" style="margin-right: 10px; font-weight: bold;">Speed: <span id="speed-val">500</span>ms</label>
-                <input type="range" id="ai-speed" min="10" max="1000" step="10" value="500">
+        <div class="ai-controls" style="margin-top: 20px; display: flex; align-items: center; justify-content: center; background: #bbada0; padding: 10px; border-radius: 3px; color: white;">
+            <div style="display: flex; gap: 4px; align-items: center;">
+                <button id="undo-btn" title="Undo Move" style="background: #a19281; color: white; border: none; padding: 8px 12px; border-radius: 3px; cursor: pointer; font-weight: bold; font-size: 1.1em;">&#10074;&#9664;</button>
+                <div style="width: 2px;"></div>
+                <button id="start-ai-btn" title="Start AI" style="background: #8f7a66; color: white; border: none; padding: 8px 12px; border-radius: 3px; cursor: pointer; font-weight: bold; font-size: 1.1em;">&#9654;</button>
+                <button id="stop-ai-btn" title="Stop AI" disabled style="background: #ccc; color: white; border: none; padding: 8px 12px; border-radius: 3px; cursor: not-allowed; font-weight: bold; font-size: 1.1em;">&#10074;&#10074;</button>
+                <button id="step-ai-btn" title="Step AI" style="background: #8f7a66; color: white; border: none; padding: 8px 12px; border-radius: 3px; cursor: pointer; font-weight: bold; font-size: 1.1em;">&#9654;&#10074;</button>
+                <div style="width: 10px;"></div> <!-- spacer -->
+                <button id="speed-down-btn" title="Decrease Speed" style="background: #8f7a66; color: white; border: none; padding: 8px 12px; border-radius: 3px; cursor: pointer; font-weight: bold; font-size: 1.1em;">-</button>
+                <button id="speed-up-btn" title="Increase Speed" style="background: #8f7a66; color: white; border: none; padding: 8px 12px; border-radius: 3px; cursor: pointer; font-weight: bold; font-size: 1.1em;">+</button>
             </div>
         </div>
 
@@ -37,6 +40,7 @@
             <div class="game-message" id="game-message">
                 <p></p>
                 <div class="lower">
+                    <a class="keep-playing-button" id="keep-playing-btn">Keep playing</a>
                     <a class="retry-button" id="retry-btn">Try again</a>
                 </div>
             </div>
@@ -66,7 +70,7 @@
         </div>
         
         <div class="controls">
-             <p>Use your <strong>arrow keys</strong> or <strong>WASD</strong> to move the tiles. The grid is <strong>3x3</strong>!</p>
+             <p>Use your <strong>arrow keys</strong> or <strong>WASD</strong> to move the tiles.</p>
         </div>
     </div>
     
