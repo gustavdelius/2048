@@ -9,7 +9,7 @@ Reinforcement Learning formally treats the environment as a Markov Decision Proc
 * **$\mathcal{S}$ (State Space):** The set of all possible configurations of the 2048 board.
 * **$\mathcal{A}$ (Action Space):** The set of valid moves $\mathcal{A} = \{\text{Up}, \text{Down}, \text{Left}, \text{Right}\}$.
 * **$\mathcal{P}$ (Transition Probability):** $P(s' \mid s, a)$, the probability of transitioning to state $s'$ after taking action $a$ in state $s$. (In 2048, after a shift, a new tile '2' or '4' spawns in a random empty cell).
-* **$\mathcal{R}$ (Reward Function):** $R(s, a, s')$, the immediate scalar reward received after transitioning from $s$ to $s'$ under action $a$. (In our code, this is the sum of $(2 \times \text{merged\_tile})^2 / 100$). We scale the quadratic reward down by a constant factor to prevent Q-values from diverging to infinity during training.
+* **$\mathcal{R}$ (Reward Function):** $R(s, a, s')$, the immediate scalar reward received after transitioning from $s$ to $s'$ under action $a$. (In our code, this is simply the sum of the new merged tile values).
 * **$\gamma \in [0, 1)$ (Discount Factor):** A tuning parameter that dictates how much the agent cares about immediate rewards versus future rewards. 
 
 In our `train.py` loop, the interaction follows the MDP sequence at each discrete time step $t$:
@@ -25,10 +25,10 @@ next_state, reward, done = env.step(action)
 
 ## 2. The Reward Function in 2048
 
-The reward function $\mathcal{R}(s, a, s')$ dictates the agent's immediate goals. In our implementation, the reward heavily incentivizes combining large tiles, rather than just surviving by making random valid moves.
+The reward function $\mathcal{R}(s, a, s')$ dictates the agent's immediate goals. In our implementation, the reward incentivizes combining larger tiles by distributing rewards equal to the new tile values created.
 
-When the agent successfully merges two tiles of value $V$ to create a new tile of value $2V$, the mathematical reward is quadratic. We then scale it down by a factor of 100 to keep the Q-values mathematically stable during training:
-$$R = \frac{(2V)^2}{100}$$
+When the agent successfully merges two tiles of value $V$ to create a new tile of value $2V$, the mathematical reward is exactly $2V$:
+$$R = 2V$$
 
 If a move results in no merged tiles but is still valid (tiles shifted), the reward is $0$ (plus whatever might be gained from other merges on the board). If an agent attempts an invalid move (such as swiping into a wall where no tiles move), it receives a penalty of $-1$.
 
@@ -38,8 +38,7 @@ This is explicitly calculated in `env.py`:
 # From env.py (inside slide_and_merge)
 new_val = non_zero[j] * 2
 merged_row.append(new_val)
-# Reward higher-value tiles *quadratically* more, scaled down by 100
-reward += (new_val**2) / 100.0
+reward += new_val
 
 # ... (inside step)
 # Give a small negative reward for invalid moves
@@ -77,21 +76,31 @@ Because the state space $\mathcal{S}$ of 2048 is too large to compute $Q^*(s,a)$
 $$Q(s, a; \theta) \approx Q^*(s, a)$$
 where $\theta$ represents the weights and biases of the neural network. 
 
-In `agent.py`, this network $Q(s, a; \theta)$ is an MLP (Multi-Layer Perceptron):
+To help the network understand the discrete, non-linear progression of tile values in 2048, we use a **Deep Embedding layer**. Instead of feeding the board's raw values, the board is converted to an index indicating the tile type ($0 \rightarrow 0, \ 2 \rightarrow 1, \ 4 \rightarrow 2$, etc.) which is passed through an `nn.Embedding` layer and flattened before the MLP processing.
+
+In `agent.py`, the network architecture $Q(s, a; \theta)$ uses this embedding:
 ```python
-# From agent.py: The Policy Network Q(s, a; θ)
-self.policy_net = nn.Sequential(
-    nn.Linear(9, 128),
+# From agent.py: Inside DeepEmbeddingDQN
+self.embedding = nn.Embedding(num_embeddings=9, embedding_dim=4)
+
+flat_size = 3 * 3 * 4 # height * width * embedding_dim
+self.fc = nn.Sequential(
+    nn.Flatten(),
+    nn.Linear(flat_size, 128),
     nn.ReLU(),
     nn.Linear(128, 128),
     nn.ReLU(),
     nn.Linear(128, 4) # Outputs Q-values for the 4 actions
 )
+
+def forward(self, state_indices):
+    x = self.embedding(state_indices)
+    return self.fc(x)
 ```
 
 ## 6. The Loss Function and Target Network
 
-To train the neural network, we need to define a Loss function. DQN typically uses the **Huber Loss** (in PyTorch, `SmoothL1Loss`) instead of Mean Squared Error (MSE). Huber loss acts like MSE when the error is small, but becomes linear (like Mean Absolute Error) when the error is large. This prevents massive rewards from creating exploding gradients that destabilize training.
+To train the neural network, we need to define a Loss function. Because our reward function is now straightforward and explicitly bounded to the tile values (unlike a massive squared reward), we can successfully use the standard **Mean Squared Error (MSE)** loss function instead of Huber loss.
 
 The TD Target $Y_t$ derived from the Bellman Equation relies on the maximum Q-value of the next state:
 $$Y_t = R_{t+1} + \gamma \max_{a'} Q(S_{t+1}, a'; \theta^-)$$
@@ -100,24 +109,31 @@ $$Y_t = R_{t+1} + \gamma \max_{a'} Q(S_{t+1}, a'; \theta^-)$$
 
 **Solution (Target Network):** We introduce a second, frozen copy of the network called the Target Network with parameters $\theta^-$. We use $\theta^-$ to calculate the stable target, and $\theta$ to calculate the prediction. 
 
-The Loss function $L(\theta)$ computes the Huber loss between the prediction and target over a batch:
-$$L(\theta) = \mathbb{E}_{(s, a, r, s') \sim U(D)} \left[ \text{Huber}\left( r + \gamma \max_{a'} Q(s', a'; \theta^-) - Q(s, a; \theta) \right) \right]$$
+The Loss function $L(\theta)$ computes the MSE loss between the prediction and target over a batch:
+$$L(\theta) = \mathbb{E}_{(s, a, r, s') \sim U(D)} \left[ \left( r + \gamma \max_{a'} Q(s', a'; \theta^-) - Q(s, a; \theta) \right)^2 \right]$$
 
-Here is how this exact mathematical formula is calculated in the `Agent.train_step()` method:
+Here is how this exact mathematical formula is calculated in the `train_step()` method, alongside crucial invalid-action masking:
 
 ```python
-# Compute Q(S_t, A_t; θ) - the current state-action values
-q_values = self.policy_net(state_batch).gather(1, action_batch)
+# Calculate current Q values Q(S_t, A_t; θ)
+current_q_values = self.q_network(states).gather(1, actions).squeeze(1)
 
-# Compute max_{a'} Q(S_{t+1}, a'; θ⁻) - the target network's best next actions
-next_q_values = self.target_network(next_state_batch).max(1)[0].unsqueeze(1)
+# Calculate target Q values using target network
+with torch.no_grad():
+    next_q_values = self.target_network(next_states)
+    
+    # Mask out invalid actions with -inf so they don't corrupt target bounds
+    next_q_values.masked_fill_(~next_valid_masks, -float('inf'))
+    
+    # Extract max_{a'} Q(S_{t+1}, a'; θ⁻)
+    max_next_q_values = next_q_values.max(1)[0]
+    max_next_q_values = torch.where(dones > 0, torch.zeros_like(max_next_q_values), max_next_q_values)
 
-# Compute the TD Target Y_t: r + γ * max Q(s', a'; θ⁻)
-# We multiply by (1 - done) because if the game ends, there is no future return.
-expected_q_values = reward_batch + (self.gamma * next_q_values * (1 - done_batch))
-
-# Compute L(θ): Huber Loss between Q(s, a; θ) and Y_t
-loss = nn.SmoothL1Loss()(q_values, expected_q_values)
+    # Compute the TD Target Y_t
+    target_q_values = rewards + (1 - dones) * self.gamma * max_next_q_values
+    
+# Compute L(θ): MSE Loss between Q(s, a; θ) and Y_t
+loss = nn.MSELoss()(current_q_values, target_q_values)
 ```
 
 ## 7. Stochastic Gradient Descent and Experience Replay
