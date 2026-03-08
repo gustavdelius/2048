@@ -96,9 +96,7 @@ class Game2048Env:
                 if j + 1 < len(non_zero) and non_zero[j] == non_zero[j+1]:
                     new_val = non_zero[j] * 2
                     merged_row.append(new_val)
-                    # As requested, reward higher-value tiles *quadratically* more.
-                    # We scale it down by 100 to prevent Q-values from exploding during training
-                    reward += (new_val**2) / 100.0
+                    reward += new_val
                     skip = True
                 else:
                     merged_row.append(non_zero[j])

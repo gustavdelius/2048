@@ -116,8 +116,8 @@ class DQNAgent:
 
             target_q_values = rewards + (1 - dones) * self.gamma * max_next_q_values
             
-        # Compute loss (SmoothL1Loss is much more stable than MSELoss for DQN)
-        loss = nn.SmoothL1Loss()(current_q_values, target_q_values)
+        # Compute loss
+        loss = nn.MSELoss()(current_q_values, target_q_values)
         
         # Optimize the model
         self.optimizer.zero_grad()
