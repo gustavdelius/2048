@@ -10,14 +10,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const aiSpeedSlider = document.getElementById("ai-speed");
     const aiSpeedVal = document.getElementById("speed-val");
 
-    
-    let board = null;
     let score = 0;
     let lockOperations = false;
-    let prevBoard = null;
     let aiInterval = null;
     let aiSpeed = 500;
-
+    
+    // NEW TILE MANAGER
+    let tiles = [];
+    let tileIdCounter = 0;
 
     // Constants based on CSS
     const gridSize = 3;
@@ -32,14 +32,53 @@ document.addEventListener("DOMContentLoaded", () => {
         };
     }
 
-    // Initialize game
+    class Tile {
+        constructor(r, c, val, isInitial = false) {
+            this.id = tileIdCounter++;
+            this.r = r;
+            this.c = c;
+            this.val = val;
+            this.mergedInto = null;
+            this.toRemove = false;
+            
+            this.el = document.createElement("div");
+            this.el.className = `tile tile-${this.val > 2048 ? 'super' : this.val}`;
+            
+            this.inner = document.createElement("div");
+            this.inner.className = isInitial ? "tile-inner" : "tile-inner tile-new";
+            this.inner.textContent = this.val;
+            
+            this.el.appendChild(this.inner);
+            tileContainer.appendChild(this.el);
+            this.updatePosition();
+        }
+        
+        updatePosition() {
+            const pos = getPosition(this.r, this.c);
+            this.el.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
+        }
+        
+        updateValue(newVal) {
+            this.val = newVal;
+            this.el.className = `tile tile-${this.val > 2048 ? 'super' : this.val}`;
+            this.inner.textContent = this.val;
+            
+            // Retrigger merge animation
+            this.inner.className = "tile-inner tile-merged";
+        }
+        
+        remove() {
+            if (this.el.parentNode) {
+                this.el.parentNode.removeChild(this.el);
+            }
+        }
+    }
+
     function init() {
         document.getElementById("restart-btn").addEventListener("click", resetGame);
         document.getElementById("retry-btn").addEventListener("click", resetGame);
         setupInput();
         setupAI();
-        
-        // Fetch initial state
         fetchState();
     }
 
@@ -53,7 +92,6 @@ document.addEventListener("DOMContentLoaded", () => {
             aiSpeed = parseInt(e.target.value, 10);
             aiSpeedVal.textContent = aiSpeed;
             if (aiInterval) {
-                // Restart interval with new speed
                 stopAI();
                 startAI();
             }
@@ -85,40 +123,6 @@ document.addEventListener("DOMContentLoaded", () => {
         stopAIBtn.style.background = '#ccc';
     }
 
-    async function makeAIMove() {
-        if (lockOperations && aiInterval) {
-            return; 
-        }
-        
-        lockOperations = true;
-        try {
-            prevBoard = JSON.parse(JSON.stringify(board));
-            const res = await fetch("/api/ai_move", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" }
-            });
-            const data = await res.json();
-            
-            if (res.ok) {
-                score += Math.floor(data.reward * 100);
-                updateState(data);
-                
-                if (data.game_over) {
-                    stopAI();
-                }
-            } else {
-                console.error("AI Move error:", data.error);
-                stopAI();
-                lockOperations = false;
-            }
-        } catch (e) {
-            console.error("Error making AI move:", e);
-            stopAI();
-            lockOperations = false;
-        }
-    }
-
-
     function setupInput() {
         document.addEventListener("keydown", event => {
             if (lockOperations) return;
@@ -142,7 +146,20 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
             const res = await fetch("/api/state");
             const data = await res.json();
-            updateState(data);
+            
+            // Clear existing tiles completely on load
+            tiles.forEach(t => t.remove());
+            tiles = [];
+            
+            for (let r = 0; r < gridSize; r++) {
+                for (let c = 0; c < gridSize; c++) {
+                    if (data.board[r][c] > 0) {
+                        tiles.push(new Tile(r, c, data.board[r][c], true));
+                    }
+                }
+            }
+            
+            updateGameState(data);
         } catch (e) {
             console.error("Error fetching state:", e);
         }
@@ -151,119 +168,215 @@ document.addEventListener("DOMContentLoaded", () => {
     async function makeMove(action) {
         lockOperations = true;
         try {
-            prevBoard = JSON.parse(JSON.stringify(board));
             const res = await fetch("/api/move", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action })
+                body: JSON.stringify({ action: action })
             });
             const data = await res.json();
             
-            if (data.valid_move) {
-                // If it was a valid move, increment score
-                score += Math.floor(data.reward * 100); 
-                updateState(data);
-            } else {
-                // Invalid move, apply the negative reward to score
-                score += Math.floor(data.reward * 100);
-                scoreContainer.textContent = score;
-                // Unlock immediately
-                lockOperations = false;
-            }
+            handleMoveResponse(data, action);
         } catch (e) {
             console.error("Error making move:", e);
             lockOperations = false;
         }
     }
 
+    async function makeAIMove() {
+        if (lockOperations && aiInterval) return; 
+        
+        lockOperations = true;
+        try {
+            const res = await fetch("/api/ai_move", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" }
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+                handleMoveResponse(data, data.action);
+            } else {
+                console.error("AI Move error:", data.error);
+                stopAI();
+                lockOperations = false;
+            }
+        } catch (e) {
+            console.error("Error making AI move:", e);
+            stopAI();
+            lockOperations = false;
+        }
+    }
+
+    function handleMoveResponse(data, action) {
+        score += Math.floor(data.reward * 100);
+        scoreContainer.textContent = score;
+
+        if (data.valid_move && action !== undefined && action !== null) {
+            // 1. Simulate the slide locally to animate
+            slideTilesLocally(action);
+            
+            // 2. Wait for CSS transition (100ms) to finish, then reconcile state
+            setTimeout(() => {
+                reconcileBoard(data.board);
+                updateGameState(data);
+            }, 100);
+        } else {
+            // Invalid move or no action, just reconcile immediately
+            reconcileBoard(data.board);
+            updateGameState(data);
+            
+            if (!data.valid_move && data.game_over) {
+                stopAI();
+            }
+        }
+    }
+
     async function resetGame() {
         messageContainer.classList.remove("game-over");
-        // Don't stop AI automatically on manual reset unless desired, but it's safer
         stopAI();
         lockOperations = true;
         score = 0;
-        prevBoard = null;
         try {
-            const res = await fetch("/api/reset", {
-                method: "POST"
-            });
+            const res = await fetch("/api/reset", { method: "POST" });
             const data = await res.json();
-            updateState(data);
+            
+            tiles.forEach(t => t.remove());
+            tiles = [];
+            
+            for (let r = 0; r < gridSize; r++) {
+                for (let c = 0; c < gridSize; c++) {
+                    if (data.board[r][c] > 0) {
+                        tiles.push(new Tile(r, c, data.board[r][c], true));
+                    }
+                }
+            }
+            
+            updateGameState(data);
         } catch (e) {
             console.error("Error resetting game:", e);
             lockOperations = false;
         }
     }
 
-    function updateState(data) {
-        board = data.board;
-        scoreContainer.textContent = score;
-        
-        renderTickets();
-        
+    function updateGameState(data) {
         if (data.game_over) {
             messageText.textContent = "Game over!";
             messageContainer.classList.add("game-over");
+            stopAI();
         }
         
-        // Unlock inputs for next move after transitions happen
         setTimeout(() => {
             lockOperations = false;
-        }, 150);
+        }, 50);
     }
-    
-    // Create UI representations from the 2D array
-    function renderTickets() {
-        tileContainer.innerHTML = '';
-        
-        // In a more complex React-like app, we'd preserve DOM elements and animate movements 
-        // to show slides and merges. For simplicity here, we re-render entirely.
-        // The actual sliding animations can be complex to calculate from just raw new boards.
-        // We'll just fade in/pop the actual final board state to start.
-        for (let r = 0; r < gridSize; r++) {
-            for (let c = 0; c < gridSize; c++) {
-                const val = board[r][c];
-                if (val !== 0) {
-                    // Check if it's new (in prevBoard it was 0)
-                    let isNew = false;
-                    let isMerged = false;
-                    
-                    if (prevBoard) {
-                        // Very rough heuristic for animations:
-                        // If cell was empty before, it's either new tile or slid tile. 
-                        // If cell was a smaller tile, it was merged.
-                        if (prevBoard[r][c] !== 0 && prevBoard[r][c] < val) {
-                            isMerged = true;
-                        } else if (prevBoard[r][c] === 0) {
-                            isNew = true; // Might just be slid, but pop effect is ok
-                        }
-                    } else {
-                        isNew = true;
-                    }
 
-                    createTile(r, c, val, isNew, isMerged);
+    function getLocalGrid() {
+        let grid = [[null,null,null], [null,null,null], [null,null,null]];
+        for (let t of tiles) {
+            if (!t.toRemove) grid[t.r][t.c] = t;
+        }
+        return grid;
+    }
+
+    function slideTilesLocally(action) {
+        let grid = getLocalGrid();
+        
+        let isVertical = (action === 0 || action === 1);
+        let isForward = (action === 1 || action === 3); 
+        
+        for (let i = 0; i < gridSize; i++) {
+            let line = []; 
+            for (let j = 0; j < gridSize; j++) {
+                let r = isVertical ? j : i;
+                let c = isVertical ? i : j;
+                if (grid[r][c]) line.push(grid[r][c]);
+            }
+            
+            if (isForward) line.reverse();
+            
+            let newLine = [];
+            let skip = false;
+            for (let k = 0; k < line.length; k++) {
+                if (skip) {
+                    skip = false;
+                    continue;
+                }
+                if (k + 1 < line.length && line[k].val === line[k+1].val) {
+                    let keeper = line[k];
+                    let removed = line[k+1];
+                    removed.toRemove = true;
+                    removed.mergedInto = keeper;
+                    newLine.push(keeper);
+                    skip = true;
+                } else {
+                    newLine.push(line[k]);
+                }
+            }
+            
+            for (let k = 0; k < newLine.length; k++) {
+                let targetIdx = isForward ? (gridSize - 1 - k) : k;
+                let targetR = isVertical ? targetIdx : i;
+                let targetC = isVertical ? i : targetIdx;
+                
+                let t = newLine[k];
+                if (t.r !== targetR || t.c !== targetC) {
+                    t.r = targetR;
+                    t.c = targetC;
+                    t.updatePosition();
+                }
+            }
+            
+            for (let t of line) {
+                if (t.toRemove && t.mergedInto) {
+                    if (t.r !== t.mergedInto.r || t.c !== t.mergedInto.c) {
+                        t.r = t.mergedInto.r;
+                        t.c = t.mergedInto.c;
+                        t.updatePosition();
+                    }
                 }
             }
         }
     }
 
-    function createTile(r, c, value, isNew, isMerged) {
-        const d_wrapper = document.createElement("div");
-        d_wrapper.className = `tile tile-${value > 2048 ? 'super' : value}`;
+    function reconcileBoard(serverBoard) {
+        let activeTiles = [];
         
-        const pos = getPosition(r, c);
-        d_wrapper.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
-        
-        const d_inner = document.createElement("div");
-        d_inner.className = "tile-inner";
-        d_inner.textContent = value;
-        
-        if (isMerged) {
-            d_wrapper.classList.add("tile-merged");
+        // Remove destroyed tiles, double values of keepers
+        for (let t of tiles) {
+            if (t.toRemove) {
+                t.remove();
+            } else {
+                let mergedTiles = tiles.filter(removed => removed.toRemove && removed.mergedInto === t);
+                if (mergedTiles.length > 0) {
+                    t.updateValue(t.val * 2);
+                } else {
+                    // strip animation classes so it doesn't replay
+                    t.inner.className = "tile-inner"; 
+                }
+                activeTiles.push(t);
+            }
         }
         
-        d_wrapper.appendChild(d_inner);
-        tileContainer.appendChild(d_wrapper);
+        tiles = activeTiles;
+        
+        // Spawn any new tiles
+        for (let r = 0; r < gridSize; r++) {
+            for (let c = 0; c < gridSize; c++) {
+                let serverVal = serverBoard[r][c];
+                let localTile = tiles.find(t => t.r === r && t.c === c);
+                
+                if (serverVal > 0 && !localTile) {
+                    tiles.push(new Tile(r, c, serverVal));
+                } else if (serverVal > 0 && localTile && localTile.val !== serverVal) {
+                    // Failsafe 
+                    localTile.updateValue(serverVal);
+                } else if (serverVal === 0 && localTile) {
+                    // Failsafe
+                    localTile.remove();
+                    tiles = tiles.filter(t => t !== localTile);
+                }
+            }
+        }
     }
 
     init();

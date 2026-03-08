@@ -44,7 +44,8 @@ def make_move():
         'board': env.board.tolist(),
         'reward': reward,
         'game_over': done,
-        'valid_move': info.get('valid_move', True)
+        'valid_move': info.get('valid_move', True),
+        'action': int(action)
     }
     return jsonify(response)
 

@@ -150,6 +150,9 @@ h1.title {
   align-items: center;
   border-radius: 3px;
   background: #eee4da;
+}
+
+.tile-new {
   animation: pop 200ms ease-in-out;
 }
 
