@@ -55,6 +55,9 @@ class Game2048Env:
         # Save current state before modifying
         if self.track_history:
             self.history.append((self.board.copy(), self.score))
+            
+        old_max_tile = np.max(self.board)
+        was_in_corner = (self.board[self.size - 1, 0] == old_max_tile)
         
         if action == 0: # Up
             self.board, reward, changed = self.slide_and_merge(self.board, direction='up')
@@ -75,6 +78,15 @@ class Game2048Env:
             if reward > 0:
                 self.score += reward
             self.add_random_tile()
+            
+            new_max_tile = np.max(self.board)
+            is_in_corner = (self.board[self.size - 1, 0] == new_max_tile)
+            
+            # One-off reward for arriving in the corner, penalty for leaving
+            if not was_in_corner and is_in_corner:
+                reward += float(2 * new_max_tile)
+            elif was_in_corner and not is_in_corner:
+                reward -= float(2 * old_max_tile)
             
         done = self.is_game_over()
         
