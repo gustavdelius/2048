@@ -29,6 +29,7 @@ dqn_*.html
 
 # Ignore model checkpoints
 *.pth
+!best_model.pth
 
 # Explicitly ignore git directory
 .git/
