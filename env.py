@@ -25,11 +25,16 @@ class Game2048Env:
         self.board[cell] = 2 if random.random() < 0.9 else 4
         
     def get_state(self):
-        # Neural network input will be log2 of the board
-        # 0 -> 0, 2 -> 1, 4 -> 2, etc. This helps the neural network learn.
-        state = np.zeros_like(self.board, dtype=np.float32)
-        mask = self.board > 0
-        state[mask] = np.log2(self.board[mask])
+        # Index encoding of the board for embedding layer
+        # 0 -> 0, 2 -> 1, 4 -> 2, 8 -> 3, ...
+        # Shape will be (size, size)
+        state = np.zeros((self.size, self.size), dtype=np.int64)
+        for i in range(self.size):
+            for j in range(self.size):
+                val = self.board[i, j]
+                if val > 0:
+                    idx = int(np.log2(val))
+                    state[i, j] = min(idx, 8)
         return state
         
     def step(self, action):

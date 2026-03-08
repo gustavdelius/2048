@@ -5,21 +5,26 @@ import numpy as np
 import random
 from collections import deque
 
-class DQN(nn.Module):
-    def __init__(self, input_shape, num_actions):
-        super(DQN, self).__init__()
-        # input_shape is (3, 3)
-        # We flatten it and run through a simple MLP for educational clarity
+class DeepEmbeddingDQN(nn.Module):
+    def __init__(self, board_size=(3, 3), num_actions=4, num_unique_tiles=9, embedding_dim=4):
+        super(DeepEmbeddingDQN, self).__init__()
+        
+        self.embedding = nn.Embedding(num_embeddings=num_unique_tiles, embedding_dim=embedding_dim)
+        
+        height, width = board_size
+        flat_size = height * width * embedding_dim
+        
         self.fc = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(9, 128),
+            nn.Linear(flat_size, 128),
             nn.ReLU(),
             nn.Linear(128, 128),
             nn.ReLU(),
             nn.Linear(128, num_actions)
         )
         
-    def forward(self, x):
+    def forward(self, state_indices):
+        x = self.embedding(state_indices)
         return self.fc(x)
 
 class ReplayBuffer:
@@ -33,10 +38,10 @@ class ReplayBuffer:
         batch = random.sample(self.buffer, batch_size)
         states, actions, rewards, next_states, dones, next_valid_masks = zip(*batch)
         return (
-            np.array(states, dtype=np.float32), 
+            np.array(states, dtype=np.int64), 
             np.array(actions, dtype=np.int64), 
             np.array(rewards, dtype=np.float32), 
-            np.array(next_states, dtype=np.float32), 
+            np.array(next_states, dtype=np.int64), 
             np.array(dones, dtype=np.float32),
             np.array(next_valid_masks, dtype=np.int32)
         )
@@ -45,15 +50,15 @@ class ReplayBuffer:
         return len(self.buffer)
 
 class DQNAgent:
-    def __init__(self, input_shape=(3, 3), num_actions=4, lr=1e-3, gamma=0.9, batch_size=64, buffer_size=50000):
+    def __init__(self, board_size=(3, 3), num_actions=4, lr=1e-3, gamma=0.99, batch_size=64, buffer_size=50000):
         self.num_actions = num_actions
         self.gamma = gamma
         self.batch_size = batch_size
         
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
-        self.q_network = DQN(input_shape, num_actions).to(self.device)
-        self.target_network = DQN(input_shape, num_actions).to(self.device)
+        self.q_network = DeepEmbeddingDQN(board_size, num_actions).to(self.device)
+        self.target_network = DeepEmbeddingDQN(board_size, num_actions).to(self.device)
         self.target_network.load_state_dict(self.q_network.state_dict())
         self.target_network.eval() # Target network is not updated by gradients
         
@@ -67,7 +72,7 @@ class DQNAgent:
             return random.randrange(self.num_actions)
         else:
             with torch.no_grad():
-                state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
+                state_tensor = torch.LongTensor(state).unsqueeze(0).to(self.device)
                 q_values = self.q_network(state_tensor)[0]
                 
                 # Soft Masking: Instead of -inf, we subtract a large penalty from invalid
@@ -86,10 +91,10 @@ class DQNAgent:
             
         states, actions, rewards, next_states, dones, next_valid_masks = self.memory.sample(self.batch_size)
         
-        states = torch.FloatTensor(states).to(self.device)
+        states = torch.LongTensor(states).to(self.device)
         actions = torch.LongTensor(actions).unsqueeze(1).to(self.device)
         rewards = torch.FloatTensor(rewards).to(self.device)
-        next_states = torch.FloatTensor(next_states).to(self.device)
+        next_states = torch.LongTensor(next_states).to(self.device)
         dones = torch.FloatTensor(dones).to(self.device)
         next_valid_masks = torch.BoolTensor(next_valid_masks).to(self.device)
         

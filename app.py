@@ -67,8 +67,8 @@ def make_ai_move():
     if not valid_actions:
         return jsonify({'error': 'No valid actions', 'game_over': True}), 400
         
-    board_state = np.ascontiguousarray(env.board)
-    action = ai_agent.select_action(board_state, epsilon=0.0, valid_actions=valid_actions)
+    state = env.get_state()
+    action = ai_agent.select_action(state, epsilon=0.0, valid_actions=valid_actions)
     next_state, reward, done, info = env.step(action)
     
     response = {
@@ -81,4 +81,4 @@ def make_ai_move():
     return jsonify(response)
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=False, port=5000)

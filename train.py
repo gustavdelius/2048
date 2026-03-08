@@ -13,6 +13,7 @@ def main():
     parser = argparse.ArgumentParser(description="Train DQN on 3x3 2048")
     parser.add_argument('--episodes', type=int, default=5000, help='Number of episodes to train')
     parser.add_argument('--resume', type=str, default='', help='Path to checkpoint to resume from (e.g., checkpoint.pth)')
+    parser.add_argument('--epsilon-start', type=float, default=None, help='Starting epsilon (overrides checkpoint default)')
     args = parser.parse_args()
     
     env = Game2048Env()
@@ -29,7 +30,7 @@ def main():
     writer = SummaryWriter('runs/3x3_2048_DQN')
     
     best_score = -float('inf')
-    epsilon = epsilon_start
+    epsilon = args.epsilon_start if args.epsilon_start is not None else epsilon_start
     start_episode = 1
     
     # Resume from checkpoint if specified
@@ -41,7 +42,12 @@ def main():
             agent.q_network.load_state_dict(checkpoint['model_state_dict'])
             agent.target_network.load_state_dict(checkpoint['target_model_state_dict'])
             agent.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            epsilon = checkpoint['epsilon']
+    
+            if args.epsilon_start is not None:
+                epsilon = args.epsilon_start
+            else:
+                epsilon = checkpoint.get('epsilon', 0.05)
+                
             best_score = checkpoint.get('best_score', -float('inf'))
             print(f"Resuming from episode {start_episode} with epsilon {epsilon:.4f}")
         else:
@@ -50,6 +56,10 @@ def main():
     print("Starting Training...")
     print(f"Logging to TensorBoard (view with: tensorboard --logdir=runs)")
     print("-" * 50)
+    
+    recent_rewards = []
+    recent_highest_tiles = []
+    recent_avg_losses = []
     
     for episode in range(start_episode, num_episodes + 1):
         state = env.reset()
@@ -106,9 +116,21 @@ def main():
         writer.add_scalar('Loss/Average', avg_loss, episode)
         writer.add_scalar('Hyperparameters/Epsilon', epsilon, episode)
         
+        recent_rewards.append(episode_reward)
+        recent_highest_tiles.append(highest_tile)
+        recent_avg_losses.append(avg_loss)
+        
         if episode % 100 == 0:
-            print(f"Episode: {episode:4d} | Reward: {episode_reward:7.1f} | "
-                  f"Highest Tile: {highest_tile:4d} | Epsilon: {epsilon:.2f} | Loss: {avg_loss:.4f}")
+            avg_100_reward = np.mean(recent_rewards)
+            max_100_tile = np.max(recent_highest_tiles)
+            avg_100_loss = np.mean(recent_avg_losses)
+            
+            print(f"Episode: {episode:4d} | Avg Reward (100): {avg_100_reward:7.1f} | "
+                  f"Max Tile (100): {max_100_tile:4d} | Epsilon: {epsilon:.2f} | Avg Loss (100): {avg_100_loss:.4f}")
+            
+            recent_rewards = []
+            recent_highest_tiles = []
+            recent_avg_losses = []
             
         if episode_reward > best_score:
             best_score = episode_reward
