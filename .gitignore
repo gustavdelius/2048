@@ -1,0 +1,33 @@
+# Ignore everything
+*
+
+# Allow directories to be traversed
+!*/
+
+# Allow specific code and documentation files
+!*.py
+!*.js
+!*.css
+!*.html
+!*.md
+!.gitignore
+
+# Re-ignore virtual environments, cache, built files, datasets and logs
+venv/
+.venv/
+__pycache__/
+runs/
+*_files/
+
+# Re-ignore debug and test scripts
+debug_*
+test_*
+
+# Re-ignore specific generated HTML files (from quarto/markdown)
+dqn_*.html
+
+# Ignore model checkpoints
+*.pth
+
+# Explicitly ignore git directory
+.git/
