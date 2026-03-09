@@ -16,6 +16,7 @@ def main():
     parser.add_argument('--epsilon-start', type=float, default=None, help='Starting epsilon (overrides checkpoint default)')
     parser.add_argument('--epsilon-end', type=float, default=0.05, help='Final minimum epsilon value')
     parser.add_argument('--epsilon-decay', type=int, default=10000, help='Number of episodes to decay epsilon over')
+    parser.add_argument('--exploration-tile', type=int, default=2, help='Tile value to start using epsilon exploration')
     args = parser.parse_args()
     
     env = Game2048Env()
@@ -27,6 +28,7 @@ def main():
     epsilon_end = args.epsilon_end
     epsilon_decay_steps = args.epsilon_decay
     target_update_freq = 50
+    exploration_tile = args.exploration_tile
     
     # Setup TensorBoard tracing to monitor logic
     writer = SummaryWriter('runs/3x3_2048_DQN')
@@ -75,7 +77,11 @@ def main():
                 done = True
                 break
                 
-            action = agent.select_action(state, epsilon, valid_actions)
+            # Allow more exploration late in the game (e.g., after the exploration_tile is created)
+            # Early in the game, reduce random moves to increase chances of reaching later stages
+            current_epsilon = epsilon if np.max(env.board) >= exploration_tile else 0.001
+            
+            action = agent.select_action(state, current_epsilon, valid_actions)
             next_state, reward, done, info = env.step(action)
             
             # Record the valid actions of the NEXT state to train the target properly

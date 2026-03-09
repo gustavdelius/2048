@@ -42,6 +42,7 @@ Available arguments:
 - `--epsilon-start`: Starting exploration rate.
 - `--epsilon-end`: Final minimum exploration rate (default: `0.05`).
 - `--epsilon-decay`: Number of episodes to decay epsilon over.
+- `--exploration-tile`: Tile value to start using epsilon exploration (default: `2`).
 
 To monitor training using TensorBoard:
 ```bash
