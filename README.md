@@ -7,8 +7,9 @@ This repository contains a Deep Q-Network (DQN) agent trained to play a 3x3 vers
 - **`env.py`**: Custom 3x3 2048 environment implementation. Handles game logic (sliding, merging, invalid moves, and score tracking).
 - **`agent.py`**: PyTorch implementation of the Deep Q-Network (DQN). Uses an embedding layer to represent tile states and two exact copies of the network (policy and target) for stable training.
 - **`train.py`**: The main training loop. Implements epsilon-greedy exploration, experience replay, and periodic target network updates. Includes TensorBoard logging.
+- **`evaluate.py`**: Script to evaluate model performance across multiple games by tracking average reward, average steps, and recording tile distributions.
 - **`app.py`**: A Flask web application that serves a web-based 2048 UI. You can manually play the game or ask the pre-trained agent (`best_model.pth`) to play for you.
-- **`best_model.pth`** / **`checkpoint.pth`**: Saved PyTorch model weights for the trained agent.
+- **`best_model.pth`** Saved PyTorch model weights for the trained agent.
 - **`dqn_math.md` & `dqn_explanation.md`**: Detailed markdown documents explaining the theoretical background and mathematical derivations behind the DQN agent for this environment.
 - **Visualization & Debugging Scripts**: Scripts such as `visualise_embedding.py`, `analyze_embeddings.py`, and `debug_*.py` are used for debugging the reward function, calculating training loss, and visualizing learned tile embeddings.
 
@@ -49,7 +50,20 @@ To monitor training using TensorBoard:
 tensorboard --logdir=runs
 ```
 
-### 2. Running the Web Interface
+### 2. Evaluating the Agent
+
+Once you have a model trained (e.g., `best_model.pth`), you can evaluate its performance over a set number of games using `evaluate.py`. 
+
+```bash
+python evaluate.py --episodes 100
+```
+
+Available arguments:
+- `--model`: Path to a specific model to evaluate (default: `best_model.pth`)
+- `--episodes`: Number of episodes to run (default: `100`)
+- `--epsilon`: Exploration rate during evaluation (default: `0.01`)
+
+### 3. Running the Web Interface
 
 Once you have a `best_model.pth` trained, you can run the Flask app to see the agent in action.
 
@@ -61,7 +75,7 @@ The server will start on `http://127.0.0.1:5000`. Navigate to this URL in your b
 - Play the 3x3 2048 game manually.
 - Click the AI move button to have the pre-trained DQN agent pick the best move.
 
-### 3. Understanding the Math
+### 4. Understanding the Math
 
 For a deep dive into the reinforcement learning theory and mathematical derivations behind this specific implementation, refer to:
 

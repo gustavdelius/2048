@@ -126,10 +126,11 @@ def main():
             avg_100_reward = np.mean(recent_rewards)
             max_100_tile = int(np.max(recent_highest_tiles))
             max_tile_count = recent_highest_tiles.count(max_100_tile)
+            next_lower_count = recent_highest_tiles.count(max_100_tile // 2)
             avg_100_loss = np.mean(recent_avg_losses)
             
             print(f"Episode: {episode:4d} | Avg Reward: {avg_100_reward:7.1f} | "
-                  f"Max Tile: {max_100_tile:4d} ({max_tile_count:2d}) | Epsilon: {epsilon:.2f} | Avg Loss: {avg_100_loss:.4f}")
+                  f"Max Tile: {max_100_tile:4d} ({max_tile_count:2d}, {next_lower_count:2d}) | Epsilon: {epsilon:.2f} | Avg Loss: {avg_100_loss:.4f}")
             
             # Save best model based on 100-episode average performance, not single luck
             # Also save if best_model.pth doesn't exist yet
