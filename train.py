@@ -68,7 +68,6 @@ def main():
         done = False
         episode_reward = 0
         loss_history = []
-        invalid_count = 0
         
         while not done:
             valid_actions = env.get_valid_actions()
@@ -84,13 +83,6 @@ def main():
             next_valid_mask = [1 if a in next_valid_actions else 0 for a in range(agent.num_actions)]
             
             agent.memory.push(state, action, reward, next_state, done, next_valid_mask)
-            
-            if not info['valid_move']:
-                invalid_count += 1
-                if invalid_count >= 5:
-                    done = True
-            else:
-                invalid_count = 0
                 
             loss = agent.train_step()
             if loss > 0:

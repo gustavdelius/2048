@@ -75,13 +75,12 @@ class DQNAgent:
                 state_tensor = torch.LongTensor(state).unsqueeze(0).to(self.device)
                 q_values = self.q_network(state_tensor)[0]
                 
-                # Soft Masking: Instead of -inf, we subtract a large penalty from invalid
-                # action Q-values. This prevents the agent from selecting them while
-                # still allowing the network to maintain its mathematical gradients for them.
+                # Hard Masking: We set the Q-values of invalid actions to -infinity.
+                # This mathematically guarantees they will 0% chance of being selected by argmax
                 if valid_actions is not None:
                     for i in range(self.num_actions):
                         if i not in valid_actions:
-                            q_values[i] -= 1000.0
+                            q_values[i] = -float('inf')
                             
                 return q_values.argmax().item()
                 
