@@ -11,11 +11,11 @@ import argparse
 
 def main():
     parser = argparse.ArgumentParser(description="Train DQN on 3x3 2048")
-    parser.add_argument('--episodes', type=int, default=5000, help='Number of episodes to train')
+    parser.add_argument('--episodes', type=int, default=100000, help='Number of episodes to train')
     parser.add_argument('--resume', type=str, default='', help='Path to checkpoint to resume from (e.g., checkpoint.pth)')
     parser.add_argument('--epsilon-start', type=float, default=None, help='Starting epsilon (overrides checkpoint default)')
-    parser.add_argument('--epsilon-end', type=float, default=0.05, help='Final minimum epsilon value')
-    parser.add_argument('--epsilon-decay', type=int, default=10000, help='Number of episodes to decay epsilon over')
+    parser.add_argument('--epsilon-end', type=float, default=0.00, help='Final minimum epsilon value')
+    parser.add_argument('--epsilon-decay', type=int, default=50000, help='Number of episodes to decay epsilon over')
     parser.add_argument('--exploration-tile', type=int, default=2, help='Tile value to start using epsilon exploration')
     args = parser.parse_args()
     

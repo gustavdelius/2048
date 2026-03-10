@@ -27,24 +27,11 @@ next_state, reward, done = env.step(action)
 
 The reward function $\mathcal{R}(s, a, s')$ dictates the agent's immediate goals. In our implementation, the reward incentivizes combining larger tiles by distributing rewards equal to the new tile values created.
 
-When the agent successfully merges two tiles of value $V$ to create a new tile of value $2V$, the mathematical reward is exactly $2V$:
-$$R = 2V$$
+When the agent successfully merges two tiles of value $V$ to create a new tile of value $2V$, that contributes a value of $2V$ to the reward. If multiple merges happen in one move, the rewards are summed up.
 
-If a move results in no merged tiles but is still valid (tiles shifted), the reward is $0$ (plus whatever might be gained from other merges on the board). If an agent attempts an invalid move (such as swiping into a wall where no tiles move), it receives a penalty of $-1$.
+If an agent attempts an invalid move (such as swiping into a wall where no tiles move), it receives a penalty of $-1$.
 
-This is explicitly calculated in `env.py`:
-
-```python
-# From env.py (inside slide_and_merge)
-new_val = non_zero[j] * 2
-merged_row.append(new_val)
-reward += new_val
-
-# ... (inside step)
-# Give a small negative reward for invalid moves
-if not changed:
-    reward = -1 
-```
+The reward is increased if the highest-value tile is moved into the lower left corner of the board. It is decreased if the highest-value tile is removed from that corner. This is to encourage the agent to keep the highest-value tile in the lower left corner of the board.
 
 ## 3. Expected Return and the Q-Function
 
@@ -163,11 +150,10 @@ $$
 \end{cases}
 $$
 
-The exploration rate $\epsilon_t$ decays exponentially at each step $t$ according to the formula:
-$$\epsilon_t = \epsilon_{end} + (\epsilon_{start} - \epsilon_{end}) \cdot \exp\left(-\frac{t}{\epsilon_{decay}}\right)$$
-
-This exact equation lives in `agent.py`:
+The exploration rate $\epsilon_t$ decays linearly at each step until it reaches a minimum value:
 ```python
-epsilon = self.epsilon_end + (self.epsilon_start - self.epsilon_end) * \
-          math.exp(-1. * self.steps_done / self.epsilon_decay)
+epsilon -= (epsilon_start - epsilon_end) / epsilon_decay_steps
+epsilon = max(epsilon_end, epsilon) # bound
 ```
+An alternative would be to let the exploration rate $\epsilon_t$ decays exponentially at each step $t$ according to the formula:
+$$\epsilon_t = \epsilon_{end} + (\epsilon_{start} - \epsilon_{end}) \cdot \exp\left(-\frac{t}{\epsilon_{decay}}\right)$$

@@ -11,7 +11,7 @@ def main():
     parser = argparse.ArgumentParser(description="Evaluate DQN on 3x3 2048")
     parser.add_argument('--model', type=str, default='best_model.pth', help='Path to model to evaluate')
     parser.add_argument('--episodes', type=int, default=100, help='Number of episodes to evaluate')
-    parser.add_argument('--epsilon', type=float, default=0.01, help='Epsilon for exploration during evaluation')
+    parser.add_argument('--epsilon', type=float, default=0.0, help='Epsilon for exploration during evaluation')
     args = parser.parse_args()
     
     env = Game2048Env()
