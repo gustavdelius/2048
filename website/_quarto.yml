@@ -1,0 +1,30 @@
+project:
+  type: website
+  output-dir: ../docs
+
+website:
+  title: "2048 RL Agent"
+  description: "Learn Reinforcement Learning through playing and training an agent in 2048."
+  site-url: ""
+  navbar:
+    background: primary
+    left:
+      - href: index.qmd
+        text: Home
+      - href: dqn_explanation.md
+        text: "Beginner's Guide (No Math)"
+      - href: dqn_math.md
+        text: "Math Details"
+      - href: embedding_analysis.md
+        text: "Embedding Analysis"
+      - href: walkthrough.md
+        text: "Implementation Details"
+
+format:
+  html:
+    theme:
+      light: flatly
+      dark: darkly
+    css: styles.css
+    toc: true
+    number-sections: false
